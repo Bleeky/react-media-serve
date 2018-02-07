@@ -9,12 +9,13 @@ import 'intersection-observer';
 
 class Serve extends Component {
   static propTypes = {
-    media: PropTypes.shape().isRequired,
+    dbPromise: PropTypes.func.isRequired,
+    media: PropTypes.shape(),
+    fetchMediaParams: PropTypes.shape(),
+    mediaUuid: PropTypes.string,
+    src: PropTypes.string,
     showContent: PropTypes.bool,
     hash: PropTypes.string,
-    publicHash: PropTypes.string,
-    size: PropTypes.number,
-    src: PropTypes.string,
     classNames: PropTypes.shape(),
     background: PropTypes.bool,
     onClick: PropTypes.func,
@@ -22,10 +23,8 @@ class Serve extends Component {
 
   static defaultProps = {
     hash: null,
-    size: null,
     src: null,
     onClick: null,
-    publicHash: null,
     background: false,
     showContent: false,
     classNames: {},
@@ -41,24 +40,28 @@ class Serve extends Component {
     this.unmounted = false;
   }
 
-  async componentWillMount() {
+  componentWillMount() {
     if (this.props.src) {
       this.setState({ url: this.props.src });
     }
   }
 
   componentDidMount() {
-    if (this.props.hash &&
-      (this.props.media.type.includes('image') || (this.props.media.extension.includes('pdf') && this.props.showContent))) {
       const element = document.getElementById(this.state.uniqueHash);
       const io = new IntersectionObserver(
         async (entry) => {
-          if (!this.state.url && entry[0].isIntersecting) {
-            this.promise = serveFile(this.props.hash, this.props.size, true, this.props.publicHash);
-            const url = await this.promise.call();
-            if (url && !this.unmounted) {
-              this.setState({ url });
+          if (this.props.mediaUuid &&
+            (this.props.media.type.includes('image') || (this.props.media.extension.includes('pdf') && this.props.showContent))) {
+              if (!this.state.url && entry[0].isIntersecting) {
+                this.promise = serveFile(this.props.mediaUuid, this.props.fetchMedia, {...this.props.fetchMediaParams});
+                const url = await this.promise.call();
+                if (url && !this.unmounted) {
+                  this.setState({ url });
+                }
+              }
             }
+          else if (this.props.src) {
+            this.setState({url: this.props.src})
           }
         },
         {
@@ -66,18 +69,20 @@ class Serve extends Component {
         },
       );
       io.observe(element);
-    }
   }
 
   async componentWillReceiveProps(nextProps) {
-    if (nextProps.hash && nextProps.hash !== this.props.hash) {
+    if (nextProps.mediaUuid && nextProps.mediaUuid !== this.props.mediaUuid) {
       this.setState({ url: null });
       if (nextProps.media.type.includes('image') || (nextProps.media.extension.includes('pdf') && nextProps.showContent)) {
-        this.promise = serveFile(nextProps.hash, nextProps.size, true, nextProps.publicHash);
+        this.promise = serveFile(nextProps.mediaUuid, nextProps.fetchMedia, {...nextProps.fetchMediaParams});
         const url = await this.promise.call();
         if (url && !this.unmounted) {
           this.setState({ url });
         }
+      }
+      else if (this.props.src) {
+        this.setState({url: this.props.src})
       }
     }
   }
@@ -120,13 +125,7 @@ class Serve extends Component {
         </div>
       );
     }
-    return (
-      <SquareboardMediaIcon
-        onClick={this.props.onClick}
-        media={this.props.media}
-        className={this.props.classNames.icon}
-      />
-    );
+    return (this.props.mediaRenderer(this.props.media));
   }
 }
 
